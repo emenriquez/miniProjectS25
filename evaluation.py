@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import textwrap
 from sklearn.metrics import confusion_matrix
 import torch
+import torch.nn.functional as F
 
 def evaluate_saved_models(model_class, exp_name, device, k=5, batch_size=1000, dropout=0.5, use_aug=False):
     from data import get_full_train_set
@@ -14,6 +15,9 @@ def evaluate_saved_models(model_class, exp_name, device, k=5, batch_size=1000, d
     kf = KFold(n_splits=k, shuffle=True, random_state=42)
     accs = []
     conf_matrices = []
+    all_labels_all_folds = []
+    all_preds_all_folds = []
+    all_probs_all_folds = []
     for fold, (train_idx, val_idx) in enumerate(kf.split(dataset)):
         val_subset = Subset(dataset, val_idx)
         val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False)
@@ -22,21 +26,46 @@ def evaluate_saved_models(model_class, exp_name, device, k=5, batch_size=1000, d
         correct, total = 0, 0
         all_labels = []
         all_preds = []
+        all_probs = []
         with torch.no_grad():
             for images, labels in val_loader:
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
-                _, predicted = torch.max(outputs.data, 1)
+                probs = F.softmax(outputs, dim=1)
+                max_probs, predicted = torch.max(probs, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
                 all_labels.extend(labels.cpu().numpy())
                 all_preds.extend(predicted.cpu().numpy())
+                all_probs.extend(max_probs.cpu().numpy())
         acc = 100 * correct / total
         accs.append(acc)
         cm = confusion_matrix(all_labels, all_preds, labels=np.arange(10))
         conf_matrices.append(cm)
+        all_labels_all_folds.extend(all_labels)
+        all_preds_all_folds.extend(all_preds)
+        all_probs_all_folds.extend(all_probs)
     avg_acc = sum(accs) / len(accs)
-    return avg_acc, accs, conf_matrices
+    return avg_acc, accs, conf_matrices, (np.array(all_labels_all_folds), np.array(all_preds_all_folds), np.array(all_probs_all_folds))
+
+from sklearn.calibration import calibration_curve
+
+def plot_reliability_diagram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name):
+    correct = (all_labels == all_preds)
+    prob_true, prob_pred = calibration_curve(correct, all_probs, n_bins=10)
+    plt.figure(figsize=(6,6))
+    plt.plot(prob_pred, prob_true, marker='o', label='Model')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfectly calibrated')
+    plt.xlabel('Confidence')
+    plt.ylabel('Accuracy')
+    plt.title(f'Reliability Diagram\n{exp_name}')
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
+    fname = os.path.join(exp_plot_dir, f"{exp_name}_reliability_diagram.png")
+    plt.savefig(fname)
+    plt.close()
+    print(f"Reliability diagram saved to {fname}")
 
 def prettify_label(label, experiment_name):
     if label.startswith(experiment_name):

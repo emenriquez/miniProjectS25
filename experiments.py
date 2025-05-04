@@ -1,7 +1,8 @@
 import torch
+import os
 from models import SimpleCNN, ImprovedCNN, MLPBaseline
 from train import cross_validate, load_model
-from evaluation import evaluate_saved_models, plot_all_results
+from evaluation import evaluate_saved_models, plot_all_results, plot_reliability_diagram
 
 def get_experiment_configs(EXPERIMENT_NAME, DEBUG):
     if DEBUG:
@@ -27,6 +28,7 @@ def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
     results = {}
     per_fold_results = {}
     per_fold_conf_matrices = {}
+    reliability_data = {}
     configs = get_experiment_configs(EXPERIMENT_NAME, DEBUG)
     if not LOAD_MODELS:
         for exp_name, model_class, kwargs in configs:
@@ -34,19 +36,27 @@ def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
             results[exp_name] = avg_acc
             per_fold_results[exp_name] = fold_accs
             per_fold_conf_matrices[exp_name] = conf_matrices
+            # For calibration, evaluate saved models to get probabilities
+            _, _, _, (all_labels, all_preds, all_probs) = evaluate_saved_models(model_class, exp_name, device, dropout=kwargs.get('dropout', 0.5), use_aug=kwargs.get('use_aug', False))
+            reliability_data[exp_name] = (all_labels, all_preds, all_probs)
     else:
         for exp_name, model_class, kwargs in configs:
             dropout = kwargs.get('dropout', 0.5)
             use_aug = kwargs.get('use_aug', False)
-            avg_acc, fold_accs, conf_matrices = evaluate_saved_models(model_class, exp_name, device, dropout=dropout, use_aug=use_aug)
+            avg_acc, fold_accs, conf_matrices, (all_labels, all_preds, all_probs) = evaluate_saved_models(model_class, exp_name, device, dropout=dropout, use_aug=use_aug)
             results[exp_name] = avg_acc
             per_fold_results[exp_name] = fold_accs
             per_fold_conf_matrices[exp_name] = conf_matrices
-    return results, per_fold_results, per_fold_conf_matrices
+            reliability_data[exp_name] = (all_labels, all_preds, all_probs)
+    return results, per_fold_results, per_fold_conf_matrices, reliability_data
 
 def main(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
-    results, per_fold_results, per_fold_conf_matrices = run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device)
+    results, per_fold_results, per_fold_conf_matrices, reliability_data = run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device)
     print("\n========== FINAL COMPARISON ==========")
     for name, acc in results.items():
         print(f"{name:35s}: {acc:.2f}%")
     plot_all_results(EXPERIMENT_NAME, results, per_fold_results, per_fold_conf_matrices)
+    # Plot reliability diagrams
+    exp_plot_dir = os.path.join('plots', EXPERIMENT_NAME)
+    for exp_name, (all_labels, all_preds, all_probs) in reliability_data.items():
+        plot_reliability_diagram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name)
