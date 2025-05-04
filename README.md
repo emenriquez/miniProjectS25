@@ -39,8 +39,8 @@ saved_models/    # Saved models (auto-generated)
 ## Setup
 1. **Clone the repository:**
    ```bash
-   git clone <your-repo-url>
-   cd classProjectS25
+   git clone git@github.com:emenriquez/miniProjectS25.git
+   cd miniProjectS25
    ```
 2. **Install dependencies:**
    It is recommended to use a virtual environment.
