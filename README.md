@@ -52,9 +52,6 @@ saved_models/    # Saved models (auto-generated)
 - Add new models to `models.py`.
 - Add new experiments or analysis scripts as needed.
 
-## License
-MIT License (add your license file if desired)
-
 ---
 
 *Created for research and educational purposes.*
