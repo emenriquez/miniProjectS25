@@ -67,12 +67,15 @@ def load_model(model_class, exp_name, fold_idx, device, dropout=0.5, save_dir='s
     model.eval()
     return model
 
-def cross_validate(model_class, name, device, epochs=5, dropout=0.5, lr=0.001, use_aug=False, use_scheduler=False, k=5, batch_size=64, return_fold_accs=False, return_conf_matrices=False):
+def cross_validate(model_class, name, device, epochs=5, dropout=0.5, lr=0.001, use_aug=False, use_scheduler=False, k=5, batch_size=64, return_fold_accs=False, return_conf_matrices=False, return_probs=False):
     print(f"\nCross-validating {name} with {k}-fold CV")
     dataset = get_full_train_set(augmented=use_aug)
     kf = KFold(n_splits=k, shuffle=True, random_state=42)
     accs = []
     conf_matrices = []
+    all_labels_all_folds = []
+    all_preds_all_folds = []
+    all_probs_all_folds = []
     for fold, (train_idx, val_idx) in enumerate(kf.split(dataset)):
         print(f"Fold {fold+1}/{k}")
         train_subset = Subset(dataset, train_idx)
@@ -101,27 +104,38 @@ def cross_validate(model_class, name, device, epochs=5, dropout=0.5, lr=0.001, u
         correct, total = 0, 0
         all_labels = []
         all_preds = []
+        all_probs = []
         with torch.no_grad():
             for images, labels in val_loader:
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
-                _, predicted = torch.max(outputs.data, 1)
+                probs = torch.nn.functional.softmax(outputs, dim=1)
+                max_probs, predicted = torch.max(probs, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
                 all_labels.extend(labels.cpu().numpy())
                 all_preds.extend(predicted.cpu().numpy())
+                all_probs.extend(max_probs.cpu().numpy())
         acc = 100 * correct / total
         print(f"Fold {fold+1} Accuracy: {acc:.2f}%")
         accs.append(acc)
         if return_conf_matrices:
             cm = confusion_matrix(all_labels, all_preds, labels=np.arange(10))
             conf_matrices.append(cm)
+        if return_probs:
+            all_labels_all_folds.extend(all_labels)
+            all_preds_all_folds.extend(all_preds)
+            all_probs_all_folds.extend(all_probs)
     avg_acc = sum(accs) / len(accs)
     print(f"{name} Average CV Accuracy: {avg_acc:.2f}%")
+    if return_fold_accs and return_conf_matrices and return_probs:
+        return avg_acc, accs, conf_matrices, (np.array(all_labels_all_folds), np.array(all_preds_all_folds), np.array(all_probs_all_folds))
     if return_fold_accs and return_conf_matrices:
         return avg_acc, accs, conf_matrices
     if return_fold_accs:
         return avg_acc, accs
     if return_conf_matrices:
         return avg_acc, conf_matrices
+    if return_probs:
+        return avg_acc, (np.array(all_labels_all_folds), np.array(all_preds_all_folds), np.array(all_probs_all_folds))
     return avg_acc
