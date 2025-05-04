@@ -5,12 +5,13 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import ConfusionMatrixDisplay
+import textwrap
 
 # Device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Set this flag to True to load models instead of training
-LOAD_MODELS = False  # Set to True to skip training and only load models for evaluation/analysis
+LOAD_MODELS = True  # Set to True to skip training and only load models for evaluation/analysis
 
 # Set this flag to True for quick debug runs
 DEBUG = True  # Set to True for quick debug runs
@@ -91,31 +92,52 @@ for name, acc in results.items():
 
 # ======== PLOTTING =========
 
+# Helper to make human-friendly labels
+def prettify_label(label):
+    # Remove experiment name prefix
+    if '_' in label:
+        label = label.split('_', 1)[1]
+    # Replace model names for readability
+    label = label.replace('MLPBaseline', 'MLP Baseline')
+    label = label.replace('SimpleCNN', 'Simple CNN')
+    label = label.replace('ImprovedCNN', 'Improved CNN')
+    label = label.replace('plus', '+')
+    # Add line breaks for long labels
+    return '\n'.join(textwrap.wrap(label, width=28))
+
 os.makedirs('plots', exist_ok=True)
 labels = list(results.keys())
 means = [results[k] for k in labels]
 stds = [np.std(per_fold_results[k]) for k in labels]
 
+# Sort by mean accuracy (descending)
+sorted_indices = sorted(range(len(means)), key=lambda i: means[i], reverse=True)
+labels_sorted = [labels[i] for i in sorted_indices]
+means_sorted = [means[i] for i in sorted_indices]
+stds_sorted = [stds[i] for i in sorted_indices]
+pretty_labels = [prettify_label(l) for l in labels_sorted]
+
 for exp_name, conf_matrices in per_fold_conf_matrices.items():
     exp_plot_dir = os.path.join('plots', EXPERIMENT_NAME)
     os.makedirs(exp_plot_dir, exist_ok=True)
     # Save summary bar plot in this directory as well
-    if exp_name == labels[0]:  # Only once for all experiments
-        plt.figure(figsize=(10, 6))
-        bars = plt.barh(labels, means, xerr=stds, color='skyblue', capsize=8)
+    if exp_name == labels_sorted[0]:  # Only once for all experiments
+        plt.figure(figsize=(12, 7))
+        bars = plt.barh(pretty_labels, means_sorted, xerr=stds_sorted, color='skyblue', capsize=8)
         plt.xlabel('Average Cross-Validation Accuracy (%)')
         plt.title(f'{EXPERIMENT_NAME}: MNIST Model Experiment Results (5-fold CV)')
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0, 1, 1])
         # Annotate bars with value and std
-        for bar, mean, std in zip(bars, means, stds):
+        for bar, mean, std in zip(bars, means_sorted, stds_sorted):
             plt.text(
-                mean + std + 0.5,  # Offset to the right of the bar
+                mean + std + 0.5,
                 bar.get_y() + bar.get_height() / 2,
-                f'{mean:.2f} +/- {std:.2f}',
+                f'{mean:.2f} ± {std:.2f}',
                 va='center',
-                fontsize=9
+                fontsize=10,
+                clip_on=False
             )
-        plt.savefig(os.path.join(exp_plot_dir, 'experiment_results.png'))
+        plt.savefig(os.path.join(exp_plot_dir, 'experiment_results.png'), bbox_inches='tight')
         plt.close()
         print(f"Plot saved to {os.path.join(exp_plot_dir, 'experiment_results.png')}")
     # Averaged confusion matrix only
