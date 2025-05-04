@@ -11,7 +11,7 @@ import textwrap
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Set this flag to True to load models instead of training
-LOAD_MODELS = True  # Set to True to skip training and only load models for evaluation/analysis
+LOAD_MODELS = False  # Set to True to skip training and only load models for evaluation/analysis
 
 # Set this flag to True for quick debug runs
 DEBUG = True  # Set to True for quick debug runs
@@ -94,9 +94,10 @@ for name, acc in results.items():
 
 # Helper to make human-friendly labels
 def prettify_label(label):
-    # Remove experiment name prefix
-    if '_' in label:
-        label = label.split('_', 1)[1]
+    # Remove experiment name prefix (handle underscores in experiment name)
+    if label.startswith(EXPERIMENT_NAME):
+        label = label[len(EXPERIMENT_NAME):]
+    label = label.lstrip('_').strip()
     # Replace model names for readability
     label = label.replace('MLPBaseline', 'MLP Baseline')
     label = label.replace('SimpleCNN', 'Simple CNN')
@@ -122,10 +123,12 @@ for exp_name, conf_matrices in per_fold_conf_matrices.items():
     os.makedirs(exp_plot_dir, exist_ok=True)
     # Save summary bar plot in this directory as well
     if exp_name == labels_sorted[0]:  # Only once for all experiments
-        plt.figure(figsize=(12, 7))
+        plt.figure(figsize=(14, 8))
         bars = plt.barh(pretty_labels, means_sorted, xerr=stds_sorted, color='skyblue', capsize=8)
-        plt.xlabel('Average Cross-Validation Accuracy (%)')
-        plt.title(f'{EXPERIMENT_NAME}: MNIST Model Experiment Results (5-fold CV)')
+        plt.xlabel('Average Cross-Validation Accuracy (%)', fontsize=16)
+        plt.title(f'{EXPERIMENT_NAME}: MNIST Model Experiment Results (5-fold CV)', fontsize=18)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
         plt.tight_layout(rect=[0, 0, 1, 1])
         # Annotate bars with value and std
         for bar, mean, std in zip(bars, means_sorted, stds_sorted):
@@ -134,7 +137,7 @@ for exp_name, conf_matrices in per_fold_conf_matrices.items():
                 bar.get_y() + bar.get_height() / 2,
                 f'{mean:.2f} ± {std:.2f}',
                 va='center',
-                fontsize=10,
+                fontsize=14,
                 clip_on=False
             )
         plt.savefig(os.path.join(exp_plot_dir, 'experiment_results.png'), bbox_inches='tight')

@@ -50,20 +50,17 @@ def train_and_eval(model_class, name, device, epochs=5, dropout=0.5, lr=0.001, u
 
 def save_model(model, exp_name, fold_idx, save_dir='saved_models'):
     # Save all model folds in a single experiment directory
-    exp_dir = os.path.join(save_dir, exp_name.split('_')[0])  # Use only the experiment name (e.g., DEBUG_RUN)
+    exp_dir = os.path.join(save_dir, exp_name)
     os.makedirs(exp_dir, exist_ok=True)
-    # Use the model name and fold in the filename (e.g., SimpleCNN_5_epochs_fold1.pt)
-    model_name = '_'.join(exp_name.split('_')[1:])
-    fname = f"{model_name}_fold{fold_idx+1}.pt"
+    fname = f"{exp_name}_{fold_idx+1}.pt"
     path = os.path.join(exp_dir, fname)
     torch.save(model.state_dict(), path)
     print(f"Model saved to {path}")
     return path
 
 def load_model(model_class, exp_name, fold_idx, device, dropout=0.5, save_dir='saved_models'):
-    exp_dir = os.path.join(save_dir, exp_name.split('_')[0])
-    model_name = '_'.join(exp_name.split('_')[1:])
-    fname = f"{model_name}_fold{fold_idx+1}.pt"
+    exp_dir = os.path.join(save_dir, exp_name)
+    fname = f"{exp_name}_{fold_idx+1}.pt"
     path = os.path.join(exp_dir, fname)
     model = model_class(dropout).to(device) if hasattr(model_class, '__init__') and 'dropout' in model_class.__init__.__code__.co_varnames else model_class().to(device)
     model.load_state_dict(torch.load(path, map_location=device))
