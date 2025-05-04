@@ -50,6 +50,30 @@ def evaluate_saved_models(model_class, exp_name, device, k=5, batch_size=1000, d
 
 from sklearn.calibration import calibration_curve
 
+def compute_ece(all_labels, all_preds, all_probs, n_bins=10):
+    # ECE: Expected Calibration Error
+    bins = np.linspace(0, 1, n_bins + 1)
+    binids = np.digitize(all_probs, bins) - 1
+    ece = 0.0
+    bin_accs = []
+    bin_confs = []
+    bin_counts = []
+    for i in range(n_bins):
+        mask = binids == i
+        if np.sum(mask) > 0:
+            acc = np.mean(all_labels[mask] == all_preds[mask])
+            conf = np.mean(all_probs[mask])
+            bin_accs.append(acc)
+            bin_confs.append(conf)
+            bin_counts.append(np.sum(mask))
+            ece += np.abs(acc - conf) * np.sum(mask)
+        else:
+            bin_accs.append(0)
+            bin_confs.append(0)
+            bin_counts.append(0)
+    ece = ece / len(all_labels)
+    return ece, bin_accs, bin_confs, bin_counts
+
 def plot_reliability_diagram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name):
     correct = (all_labels == all_preds)
     prob_true, prob_pred = calibration_curve(correct, all_probs, n_bins=10)
