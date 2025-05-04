@@ -1,0 +1,4 @@
+| Model                            | ECE (mean ± std)   |
+|:---------------------------------|:-------------------|
+| DEBUG_RUN_SimpleCNN (5 epochs)   | 0.0029 ± 0.0006    |
+| DEBUG_RUN_MLPBaseline (5 epochs) | 0.0072 ± 0.0015    |

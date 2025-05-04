@@ -5,13 +5,16 @@ import textwrap
 from sklearn.metrics import confusion_matrix
 import torch
 import torch.nn.functional as F
+from data import get_full_train_set, get_full_emnist_train_set
+from torch.utils.data import Subset, DataLoader
+from train import load_model
+from sklearn.model_selection import KFold
 
-def evaluate_saved_models(model_class, exp_name, device, k=5, batch_size=1000, dropout=0.5, use_aug=False):
-    from data import get_full_train_set
-    from torch.utils.data import Subset, DataLoader
-    from train import load_model
-    from sklearn.model_selection import KFold
-    dataset = get_full_train_set(augmented=use_aug)
+def evaluate_saved_models(model_class, exp_name, device, k=5, batch_size=1000, dropout=0.5, use_aug=False, DATASET='mnist', EMNIST_SPLIT='balanced'):
+    if DATASET == 'emnist':
+        dataset = get_full_emnist_train_set(split=EMNIST_SPLIT, augmented=use_aug)
+    else:
+        dataset = get_full_train_set(augmented=use_aug)
     kf = KFold(n_splits=k, shuffle=True, random_state=42)
     accs = []
     conf_matrices = []
@@ -40,7 +43,7 @@ def evaluate_saved_models(model_class, exp_name, device, k=5, batch_size=1000, d
                 all_probs.extend(max_probs.cpu().numpy())
         acc = 100 * correct / total
         accs.append(acc)
-        cm = confusion_matrix(all_labels, all_preds, labels=np.arange(10))
+        cm = confusion_matrix(all_labels, all_preds, labels=np.arange(10 if DATASET == 'mnist' else len(set(all_labels))))
         conf_matrices.append(cm)
         all_labels_all_folds.extend(all_labels)
         all_preds_all_folds.extend(all_preds)

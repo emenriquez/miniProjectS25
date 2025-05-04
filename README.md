@@ -1,14 +1,26 @@
-# MNIST CNN Experiments
+# MNIST & EMNIST CNN Experiments
 
-This project provides a modular framework for running and analyzing convolutional neural network (CNN) experiments on the MNIST dataset. It supports basic evaluation with cross-validation, model saving/loading, and detailed visualizations.
+This project provides a modular framework for running and analyzing convolutional neural network (CNN) experiments on the MNIST and EMNIST datasets. It supports rigorous evaluation with cross-validation, model saving/loading, confidence calibration, and detailed visualizations.
 
 ## Features
 - Modular code for models, data, training, experiments, and evaluation
 - 5-fold cross-validation for robust evaluation
 - Model saving/loading for efficient iteration
-- Automatic plotting of results and confusion matrices
+- Automatic plotting of results, confusion matrices, and reliability diagrams
+- Confidence calibration metrics (ECE, reliability diagrams, temperature scaling)
 - Command-line interface for experiment configuration
-- Easily extensible for new models or analysis
+- Supports both MNIST and all EMNIST splits (byclass, bymerge, balanced, letters, digits, mnist)
+- Easily extensible for new models, datasets, or analysis
+
+## Datasets
+- **Default:** [MNIST](http://yann.lecun.com/exdb/mnist/) (downloaded automatically via torchvision)
+- **Expanded:** [EMNIST](https://www.nist.gov/itl/products-and-services/emnist-dataset) (all splits supported via torchvision)
+
+### How to Add or Use New Datasets
+- Add new dataset loading logic to `data.py`.
+- Place new data in the `data/` directory if needed.
+- Update experiment configs in `experiments.py` to use the new dataset.
+- The project is structured to make it easy to swap or extend datasets.
 
 ## Project Structure
 ```
@@ -16,7 +28,8 @@ models.py        # CNN and MLP model definitions
 data.py          # Data loading and augmentation
 train.py         # Training, cross-validation, model save/load
 experiments.py   # Experiment orchestration and workflow
-evaluation.py    # Evaluation and plotting functions
+evaluation.py    # Evaluation, calibration, and plotting functions
+utils.py         # Utility functions (e.g., get_num_classes)
 main.py          # Entry point (CLI, config, calls experiments)
 requirements.txt # Python dependencies
 plots/           # Output plots (auto-generated)
@@ -26,8 +39,8 @@ saved_models/    # Saved models (auto-generated)
 ## Setup
 1. **Clone the repository:**
    ```bash
-   git clone git@github.com:emenriquez/miniProjectS25.git
-   cd miniProjectS25
+   git clone <your-repo-url>
+   cd classProjectS25
    ```
 2. **Install dependencies:**
    It is recommended to use a virtual environment.
@@ -43,6 +56,12 @@ saved_models/    # Saved models (auto-generated)
   python main.py --experiment MY_EXPERIMENT
   ```
   This will train models with 5-fold cross-validation, save results, and generate plots in the `plots/` directory.
+
+- **Use EMNIST (with split selection):**
+  ```bash
+  python main.py --experiment MY_EMNIST_EXPERIMENT --dataset emnist --emnist-split byclass
+  ```
+  Available EMNIST splits: byclass, bymerge, balanced, letters, digits, mnist
 
 - **Debug mode (quick run):**
   ```bash
@@ -63,13 +82,17 @@ saved_models/    # Saved models (auto-generated)
   (or `cpu`)
 
 ## Results
-- Plots and confusion matrices are saved in `plots/<experiment_name>/`.
+- Plots, confusion matrices, reliability diagrams, and ECE tables are saved in `plots/<experiment_name>/`.
 - Trained models are saved in `saved_models/<experiment_name>/`.
 - Each experiment run is grouped under its own directory for easy comparison.
 
 ## Extending the Project
 - Add new models to `models.py`.
+- Add new datasets to `data.py` and update experiment configs in `experiments.py`.
 - Add new experiments or analysis scripts as needed in `experiments.py` or `evaluation.py`.
+
+## License
+MIT License (add your license file if desired)
 
 ---
 

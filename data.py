@@ -20,8 +20,20 @@ def get_datasets():
     test_set = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform_basic)
     return train_set_basic, train_set_aug, test_set
 
+def get_emnist_datasets(split="balanced"):
+    transform_basic, transform_augmented = get_transforms()
+    train_set_basic = torchvision.datasets.EMNIST(root='./data', split=split, train=True, download=True, transform=transform_basic)
+    train_set_aug = torchvision.datasets.EMNIST(root='./data', split=split, train=True, download=True, transform=transform_augmented)
+    test_set = torchvision.datasets.EMNIST(root='./data', split=split, train=False, download=True, transform=transform_basic)
+    return train_set_basic, train_set_aug, test_set
+
 def get_loader(augmented=False, batch_size=64):
     train_set_basic, train_set_aug, _ = get_datasets()
+    dataset = train_set_aug if augmented else train_set_basic
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+def get_emnist_loader(split="balanced", augmented=False, batch_size=64):
+    train_set_basic, train_set_aug, _ = get_emnist_datasets(split=split)
     dataset = train_set_aug if augmented else train_set_basic
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -29,7 +41,16 @@ def get_test_loader(batch_size=1000):
     _, _, test_set = get_datasets()
     return DataLoader(test_set, batch_size=batch_size, shuffle=False)
 
+def get_emnist_test_loader(split="balanced", batch_size=1000):
+    _, _, test_set = get_emnist_datasets(split=split)
+    return DataLoader(test_set, batch_size=batch_size, shuffle=False)
+
 def get_full_train_set(augmented=False):
     transform_basic, transform_augmented = get_transforms()
     transform = transform_augmented if augmented else transform_basic
     return torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+
+def get_full_emnist_train_set(split="balanced", augmented=False):
+    transform_basic, transform_augmented = get_transforms()
+    transform = transform_augmented if augmented else transform_basic
+    return torchvision.datasets.EMNIST(root='./data', split=split, train=True, download=True, transform=transform)

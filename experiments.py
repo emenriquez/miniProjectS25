@@ -6,6 +6,19 @@ from evaluation import evaluate_saved_models, plot_all_results, plot_reliability
 import numpy as np
 import pandas as pd
 
+def get_num_classes(dataset, emnist_split):
+    if dataset == 'mnist':
+        return 10
+    emnist_splits = {
+        'byclass': 62,
+        'bymerge': 47,
+        'balanced': 47,
+        'letters': 26,
+        'digits': 10,
+        'mnist': 10
+    }
+    return emnist_splits.get(emnist_split, 47)
+
 def get_experiment_configs(EXPERIMENT_NAME, DEBUG):
     if DEBUG:
         return [
@@ -27,25 +40,39 @@ def get_experiment_configs(EXPERIMENT_NAME, DEBUG):
             (f"{EXPERIMENT_NAME}_ImprovedCNN (15 epochs, Temp Scaling)", TemperatureScaledModel, {"base_model_class": ImprovedCNN, "epochs": 15, "temp_scaling": True}),
         ]
 
-def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
+def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device, DATASET='mnist', EMNIST_SPLIT='balanced'):
     results = {}
     per_fold_results = {}
     per_fold_conf_matrices = {}
     reliability_data = {}
     configs = get_experiment_configs(EXPERIMENT_NAME, DEBUG)
+    num_classes = get_num_classes(DATASET, EMNIST_SPLIT)
+    for exp_name, model_class, kwargs in configs:
+        # Patch model_class to inject num_classes if needed
+        if model_class in [SimpleCNN, ImprovedCNN, MLPBaseline]:
+            kwargs['num_classes'] = num_classes
+        if model_class is TemperatureScaledModel and 'base_model_class' in kwargs:
+            # Patch base_model_class for temp scaling
+            base_model_class = kwargs['base_model_class']
+            base_model = base_model_class(num_classes=num_classes, dropout=kwargs.get('dropout', 0.5)).to(device)
+            kwargs['base_model'] = base_model
     if not LOAD_MODELS:
         for exp_name, model_class, kwargs in configs:
             if kwargs.get("temp_scaling", False):
                 # Train base model first
-                base_model = kwargs["base_model_class"](dropout=kwargs.get("dropout", 0.5)).to(device)
+                base_model = kwargs["base_model"]
                 avg_acc, fold_accs, conf_matrices = cross_validate(
                     lambda: base_model, exp_name+"_pretemp", device, return_fold_accs=True, return_conf_matrices=True, epochs=kwargs["epochs"]
                 )
                 # Fit temperature on validation set (reuse last fold's val set for simplicity)
-                from data import get_full_train_set
+                dataset_args = {'split': EMNIST_SPLIT} if DATASET == 'emnist' else {}
+                from data import get_full_emnist_train_set, get_full_train_set
+                if DATASET == 'emnist':
+                    dataset = get_full_emnist_train_set(split=EMNIST_SPLIT)
+                else:
+                    dataset = get_full_train_set()
                 from torch.utils.data import Subset, DataLoader
                 from sklearn.model_selection import KFold
-                dataset = get_full_train_set()
                 kf = KFold(n_splits=5, shuffle=True, random_state=42)
                 _, val_idx = list(kf.split(dataset))[-1]
                 val_loader = DataLoader(Subset(dataset, val_idx), batch_size=128, shuffle=False)
@@ -53,7 +80,7 @@ def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
                 temp_model.set_temperature(val_loader, device)
                 # Evaluate with temperature scaling
                 avg_acc, fold_accs, conf_matrices, (all_labels, all_preds, all_probs) = evaluate_saved_models(
-                    lambda: temp_model, exp_name, device
+                    lambda: temp_model, exp_name, device, DATASET=DATASET, EMNIST_SPLIT=EMNIST_SPLIT
                 )
                 results[exp_name] = avg_acc
                 per_fold_results[exp_name] = fold_accs
@@ -61,7 +88,7 @@ def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
                 reliability_data[exp_name] = (all_labels, all_preds, all_probs)
                 continue
             avg_acc, fold_accs, conf_matrices, (all_labels, all_preds, all_probs) = cross_validate(
-                model_class, exp_name, device, return_fold_accs=True, return_conf_matrices=True, return_probs=True, **kwargs
+                model_class, exp_name, device, return_fold_accs=True, return_conf_matrices=True, return_probs=True, DATASET=DATASET, EMNIST_SPLIT=EMNIST_SPLIT, **kwargs
             )
             results[exp_name] = avg_acc
             per_fold_results[exp_name] = fold_accs
@@ -71,15 +98,17 @@ def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
         for exp_name, model_class, kwargs in configs:
             dropout = kwargs.get('dropout', 0.5)
             use_aug = kwargs.get('use_aug', False)
-            avg_acc, fold_accs, conf_matrices, (all_labels, all_preds, all_probs) = evaluate_saved_models(model_class, exp_name, device, dropout=dropout, use_aug=use_aug)
+            avg_acc, fold_accs, conf_matrices, (all_labels, all_preds, all_probs) = evaluate_saved_models(
+                model_class, exp_name, device, dropout=dropout, use_aug=use_aug, DATASET=DATASET, EMNIST_SPLIT=EMNIST_SPLIT
+            )
             results[exp_name] = avg_acc
             per_fold_results[exp_name] = fold_accs
             per_fold_conf_matrices[exp_name] = conf_matrices
             reliability_data[exp_name] = (all_labels, all_preds, all_probs)
     return results, per_fold_results, per_fold_conf_matrices, reliability_data
 
-def main(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device):
-    results, per_fold_results, per_fold_conf_matrices, reliability_data = run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device)
+def main(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device, DATASET='mnist', EMNIST_SPLIT='balanced'):
+    results, per_fold_results, per_fold_conf_matrices, reliability_data = run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device, DATASET, EMNIST_SPLIT)
     print("\n========== FINAL COMPARISON ==========")
     for name, acc in results.items():
         print(f"{name:35s}: {acc:.2f}%")

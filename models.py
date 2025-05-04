@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class SimpleCNN(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes=10):
         super(SimpleCNN, self).__init__()
         self.net = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=3, padding=1),
@@ -14,14 +14,14 @@ class SimpleCNN(nn.Module):
             nn.Flatten(),
             nn.Linear(32 * 7 * 7, 128),
             nn.ReLU(),
-            nn.Linear(128, 10)
+            nn.Linear(128, num_classes)
         )
 
     def forward(self, x):
         return self.net(x)
 
 class ImprovedCNN(nn.Module):
-    def __init__(self, dropout=0.5):
+    def __init__(self, dropout=0.5, num_classes=10):
         super(ImprovedCNN, self).__init__()
         self.net = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=3, padding=1),
@@ -36,14 +36,14 @@ class ImprovedCNN(nn.Module):
             nn.Linear(64 * 7 * 7, 256),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(256, 10)
+            nn.Linear(256, num_classes)
         )
 
     def forward(self, x):
         return self.net(x)
 
 class MLPBaseline(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes=10):
         super(MLPBaseline, self).__init__()
         self.net = nn.Sequential(
             nn.Flatten(),
@@ -51,11 +51,11 @@ class MLPBaseline(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(128, 10)
+            nn.Linear(128, num_classes)
         )
 
     def forward(self, x):
-        return self.net
+        return self.net(x)
 
 class TemperatureScaledModel(nn.Module):
     def __init__(self, base_model, init_temp=1.0):
