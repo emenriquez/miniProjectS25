@@ -8,7 +8,10 @@ This project provides a modular framework for running and analyzing convolutiona
 - Model saving/loading for efficient iteration
 - Automatic plotting of results, confusion matrices, and reliability diagrams
 - Confidence calibration metrics (ECE, reliability diagrams, temperature scaling)
-- Command-line interface for experiment configuration
+- Confidence histogram plots for correct/incorrect predictions
+- UMAP and t-SNE embedding plots for visualizing learned representations
+- Plots of most confident misclassifications for each model
+- Command-line interface for experiment configuration, including batch size and number of workers
 - Supports both MNIST and all EMNIST splits (byclass, bymerge, balanced, letters, digits, mnist)
 - Easily extensible for new models, datasets, or analysis
 
@@ -63,6 +66,11 @@ saved_models/    # Saved models (auto-generated)
   ```
   Available EMNIST splits: byclass, bymerge, balanced, letters, digits, mnist
 
+- **Set number of DataLoader workers and batch size:**
+  ```bash
+  python main.py --num-workers 8 --batch-size 256
+  ```
+
 - **Debug mode (quick run):**
   ```bash
   python main.py --debug
@@ -82,7 +90,10 @@ saved_models/    # Saved models (auto-generated)
   (or `cpu`)
 
 ## Results
-- Plots, confusion matrices, reliability diagrams, and ECE tables are saved in `plots/<experiment_name>/`.
+- Plots, confusion matrices, reliability diagrams, **confidence histograms**, and ECE tables are saved in `plots/<experiment_name>/`.
+- Each model produces a file named `<model_name>_confidence_histogram.png` showing the distribution of predicted confidences for correct and incorrect predictions.
+- **UMAP and t-SNE embedding plots** (`<model_name>_umap_embeddings.png`, `<model_name>_tsne_embeddings.png`) visualize learned features.
+- **Most confident misclassification plots** (`<model_name>_most_confident_misclassifications.png`) highlight errors with high confidence.
 - Trained models are saved in `saved_models/<experiment_name>/`.
 - Each experiment run is grouped under its own directory for easy comparison.
 
@@ -90,9 +101,6 @@ saved_models/    # Saved models (auto-generated)
 - Add new models to `models.py`.
 - Add new datasets to `data.py` and update experiment configs in `experiments.py`.
 - Add new experiments or analysis scripts as needed in `experiments.py` or `evaluation.py`.
-
-## License
-MIT License (add your license file if desired)
 
 ---
 

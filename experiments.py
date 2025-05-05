@@ -78,7 +78,8 @@ def run_experiments(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device, DATASET='mnist'
                 model_class, exp_name, device,
                 k=k_folds, epochs=kwargs.get('epochs', 5), dropout=kwargs.get('dropout', 0.5),
                 use_aug=kwargs.get('use_aug', False), DATASET=DATASET, EMNIST_SPLIT=EMNIST_SPLIT,
-                num_workers=NUM_WORKERS, batch_size=BATCH_SIZE, **{k: v for k, v in kwargs.items() if k not in ['epochs', 'use_aug', 'use_scheduler', 'temp_scaling', 'base_model_class']}
+                num_workers=NUM_WORKERS, batch_size=BATCH_SIZE,
+                **{k: v for k, v in kwargs.items() if k not in ['epochs', 'use_aug', 'use_scheduler', 'temp_scaling', 'base_model_class', 'dropout']}
             )
         elif not LOAD_MODELS and all_folds_exist:
             print(f"Skipping training for {exp_name} (all folds already exist)")
