@@ -12,7 +12,8 @@ from sklearn.model_selection import KFold
 
 def evaluate_saved_models(
     model_class, exp_name, device, k=5, batch_size=1000, dropout=0.5, use_aug=False,
-    DATASET='mnist', EMNIST_SPLIT='balanced', return_images=False, return_embeddings=False, load_weights=True
+    DATASET='mnist', EMNIST_SPLIT='balanced', return_images=False, return_embeddings=False, load_weights=True,
+    num_workers=4, **extra_kwargs
 ):
     if DATASET == 'emnist':
         dataset = get_full_emnist_train_set(split=EMNIST_SPLIT, augmented=use_aug)
@@ -26,10 +27,11 @@ def evaluate_saved_models(
     all_probs_all_folds = []
     all_images_all_folds = [] if return_images else None
     all_embeddings_all_folds = [] if return_embeddings else None
+    pin_memory = torch.cuda.is_available()
     for fold, (train_idx, val_idx) in enumerate(kf.split(dataset)):
         val_subset = Subset(dataset, val_idx)
-        val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False)
-        model = load_model(model_class, exp_name, fold, device, dropout=dropout, load_weights=load_weights)
+        val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+        model = load_model(model_class, exp_name, fold, device, dropout=dropout, load_weights=load_weights, **extra_kwargs)
         model.eval()
         correct, total = 0, 0
         all_labels = []
@@ -162,7 +164,7 @@ def plot_umap_embeddings(
     """
     Project embeddings to 2D using UMAP and plot:
     - Color by true label
-    - Marker: 'o' for correct, 'x' for incorrect
+    - Misclassified points are highly visible: larger, thicker, and on top
     - Optionally, color intensity by confidence if confidences is provided
     - sample_size: number of points to plot (randomly sampled for clarity)
     - n_neighbors, min_dist: UMAP parameters to control cluster tightness/islands
@@ -179,6 +181,11 @@ def plot_umap_embeddings(
     correct = preds == labels
     embeddings = np.array(embeddings)
     N = len(labels)
+
+    # Handle case where embeddings is empty or 1D (avoid crash)
+    if embeddings.ndim != 2 or embeddings.shape[0] == 0:
+        print(f"Warning: No embeddings to plot for {exp_name}. Skipping UMAP plot.")
+        return
 
     # Normalize embeddings (L2 norm)
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
@@ -208,24 +215,24 @@ def plot_umap_embeddings(
     num_classes = len(unique_labels)
     cmap = plt.get_cmap('tab10' if num_classes <= 10 else 'tab20')
 
-    # Plot correct predictions
-    scatter_correct = plt.scatter(
+    # Plot correct predictions (drawn first, smaller, more transparent)
+    plt.scatter(
         emb_2d[correct, 0], emb_2d[correct, 1],
-        c=labels[correct], cmap=cmap, s=15, marker='o', alpha=0.6, label='Correct'
+        c=labels[correct], cmap=cmap, s=12, marker='o', alpha=0.25, label='Correct', linewidths=0
     )
-    # Plot misclassifications
-    scatter_incorrect = None
+    # Plot misclassifications (drawn on top, larger, less transparent, thick edge)
     if np.any(~correct):
-        scatter_incorrect = plt.scatter(
+        plt.scatter(
             emb_2d[~correct, 0], emb_2d[~correct, 1],
-            c=labels[~correct], cmap=cmap, s=30, marker='x', alpha=0.8, label='Incorrect'
+            c=labels[~correct], cmap=cmap, s=60, marker='o', alpha=0.95,
+            edgecolor='black', linewidths=1.5, label='Incorrect'
         )
 
-    # Optionally overlay confidence as color intensity
+    # Optionally overlay confidence as color intensity (drawn behind)
     if confidences is not None:
         plt.scatter(
             emb_2d[:, 0], emb_2d[:, 1],
-            c=confidences, cmap='viridis', s=8, alpha=0.3, label='Confidence'
+            c=confidences, cmap='viridis', s=8, alpha=0.15, label='Confidence', zorder=0
         )
         cbar = plt.colorbar()
         cbar.set_label('Confidence (max softmax)', fontsize=12)
@@ -238,12 +245,12 @@ def plot_umap_embeddings(
                                     markerfacecolor=color, markersize=8, alpha=0.8))
     # Add handles for correct/incorrect
     handles = class_handles + [
-        Line2D([0], [0], marker='o', color='w', label='Correct', markerfacecolor='gray', markeredgecolor='k', markersize=8, alpha=0.6),
-        Line2D([0], [0], marker='x', color='k', label='Incorrect', linestyle='None', markersize=10, markeredgewidth=2)
+        Line2D([0], [0], marker='o', color='w', label='Correct', markerfacecolor='gray', markersize=8, alpha=0.25),
+        Line2D([0], [0], marker='o', color='black', label='Incorrect', markerfacecolor='gray', markersize=12, markeredgewidth=2)
     ]
     plt.legend(handles=handles, loc='best', fontsize=10, frameon=True)
 
-    plt.title(f"UMAP Embeddings\nColored by True Label, X=Incorrect\n{exp_name}")
+    plt.title(f"UMAP Embeddings\nColored by True Label, Misclassified Highlighted\n{exp_name}")
     plt.xlabel("UMAP-1")
     plt.ylabel("UMAP-2")
     plt.tight_layout()
@@ -350,6 +357,28 @@ def plot_tsne_embeddings(
     plt.close()
     print(f"t-SNE embedding plot saved to {fname}")
 
+def plot_confidence_histogram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name, bins=20):
+    """
+    Plot histogram of predicted probabilities (confidence) for correct and incorrect predictions.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    correct_mask = (all_labels == all_preds)
+    incorrect_mask = ~correct_mask
+    plt.figure(figsize=(8, 5))
+    plt.hist(all_probs[correct_mask], bins=bins, alpha=0.7, label='Correct', color='green', density=True)
+    plt.hist(all_probs[incorrect_mask], bins=bins, alpha=0.7, label='Incorrect', color='red', density=True)
+    plt.xlabel('Predicted Probability (Confidence)')
+    plt.ylabel('Density')
+    plt.title(f'Confidence Histogram\n{exp_name}')
+    plt.legend()
+    plt.tight_layout()
+    os.makedirs(exp_plot_dir, exist_ok=True)
+    fname = os.path.join(exp_plot_dir, f"{exp_name}_confidence_histogram.png")
+    plt.savefig(fname)
+    plt.close()
+    print(f"Confidence histogram saved to {fname}")
+
 def prettify_label(label, experiment_name):
     if label.startswith(experiment_name):
         label = label[len(experiment_name):]
@@ -397,7 +426,7 @@ def plot_all_results(EXPERIMENT_NAME, results, per_fold_results, per_fold_conf_m
             row_sums = avg_cm.sum(axis=1, keepdims=True)
             norm_cm = np.divide(avg_cm, row_sums, where=row_sums!=0) * 100
             fig, ax = plt.subplots(figsize=(7, 7))
-            im = ax.imshow(norm_cm, interpolation='nearest', cmap='Blues', vmin=0, vmax=3)
+            im = ax.imshow(norm_cm, interpolation='nearest', cmap='Blues', vmin=0, vmax=2)  # Changed vmax=3 to vmax=2
             cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             cbar.set_label('% of True Class', fontsize=14)
             plt.title(f'{exp_name} - Averaged Confusion Matrix (5 folds, % normalized)', fontsize=14, pad=20)

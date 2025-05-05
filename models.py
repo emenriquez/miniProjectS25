@@ -80,6 +80,11 @@ class TemperatureScaledModel(nn.Module):
     def forward(self, x):
         logits = self.base_model(x)
         return logits / self.temperature
+    def forward_features(self, x):
+        # Delegate to the base model's forward_features if available, else just forward
+        if hasattr(self.base_model, "forward_features"):
+            return self.base_model.forward_features(x)
+        return self.base_model(x)
     def set_temperature(self, valid_loader, device):
         self.eval()
         nll_criterion = nn.CrossEntropyLoss().to(device)

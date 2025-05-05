@@ -27,23 +27,23 @@ def get_emnist_datasets(split="balanced"):
     test_set = torchvision.datasets.EMNIST(root='./data', split=split, train=False, download=True, transform=transform_basic)
     return train_set_basic, train_set_aug, test_set
 
-def get_loader(augmented=False, batch_size=64):
+def get_loader(augmented=False, batch_size=64, num_workers=4, pin_memory=True, persistent_workers=True):
     train_set_basic, train_set_aug, _ = get_datasets()
     dataset = train_set_aug if augmented else train_set_basic
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory, persistent_workers=persistent_workers)
 
-def get_emnist_loader(split="balanced", augmented=False, batch_size=64):
+def get_emnist_loader(split="balanced", augmented=False, batch_size=64, num_workers=4, pin_memory=True, persistent_workers=True):
     train_set_basic, train_set_aug, _ = get_emnist_datasets(split=split)
     dataset = train_set_aug if augmented else train_set_basic
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory, persistent_workers=persistent_workers)
 
-def get_test_loader(batch_size=1000):
+def get_test_loader(batch_size=1000, num_workers=4, pin_memory=True, persistent_workers=True):
     _, _, test_set = get_datasets()
-    return DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    return DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory, persistent_workers=persistent_workers)
 
-def get_emnist_test_loader(split="balanced", batch_size=1000):
+def get_emnist_test_loader(split="balanced", batch_size=1000, num_workers=4, pin_memory=True, persistent_workers=True):
     _, _, test_set = get_emnist_datasets(split=split)
-    return DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    return DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory, persistent_workers=persistent_workers)
 
 def get_full_train_set(augmented=False):
     transform_basic, transform_augmented = get_transforms()
