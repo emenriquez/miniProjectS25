@@ -130,6 +130,14 @@ def plot_reliability_diagram(all_labels, all_preds, all_probs, exp_plot_dir, exp
 def plot_most_confident_misclassifications(
     images, preds, labels, confidences, exp_plot_dir, exp_name, top_n=16, class_names=None
 ):
+    # Manual mapping for EMNIST "balanced" split (index -> ASCII code)
+    emnist_balanced_ascii = [
+        48, 49, 50, 51, 52, 53, 54, 55, 56, 57,  # 0-9
+        65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90,  # A-Z
+        97, 98, 100, 101, 102, 103, 104, 110, 113, 114, 116  # a, b, d, e, f, g, h, n, q, r, t
+    ]
+    emnist_balanced_labels = [chr(a) for a in emnist_balanced_ascii]
+
     preds = np.array(preds)
     labels = np.array(labels)
     confidences = np.array(confidences)
@@ -149,11 +157,18 @@ def plot_most_confident_misclassifications(
             img_disp = img.squeeze().cpu().numpy()
         else:
             img_disp = img.squeeze()
-        # Use class names if provided, and ensure index is int
+        # Fix orientation for EMNIST: transpose image if shape is (28,28)
+        if img_disp.ndim == 2 and img_disp.shape == (28, 28):
+            img_disp = img_disp.T
         pred_idx = int(preds[idx])
         true_idx = int(labels[idx])
-        pred_label = class_names[pred_idx] if class_names is not None and pred_idx < len(class_names) else pred_idx
-        true_label = class_names[true_idx] if class_names is not None and true_idx < len(class_names) else true_idx
+        # Use manual mapping for EMNIST balanced, else fallback to class_names or index
+        if class_names is not None and len(class_names) == 47:
+            pred_label = emnist_balanced_labels[pred_idx] if pred_idx < len(emnist_balanced_labels) else pred_idx
+            true_label = emnist_balanced_labels[true_idx] if true_idx < len(emnist_balanced_labels) else true_idx
+        else:
+            pred_label = class_names[pred_idx] if (class_names is not None and pred_idx < len(class_names)) else pred_idx
+            true_label = class_names[true_idx] if (class_names is not None and true_idx < len(class_names)) else true_idx
         plt.imshow(img_disp, cmap='gray')
         plt.axis('off')
         plt.title(f"P:{pred_label}\nT:{true_label}\nC:{confidences[idx]:.2f}")
