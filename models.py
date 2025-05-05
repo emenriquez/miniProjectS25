@@ -4,7 +4,7 @@ import torch.nn as nn
 class SimpleCNN(nn.Module):
     def __init__(self, num_classes=10):
         super(SimpleCNN, self).__init__()
-        self.net = nn.Sequential(
+        self.features = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
@@ -13,17 +13,22 @@ class SimpleCNN(nn.Module):
             nn.MaxPool2d(2),
             nn.Flatten(),
             nn.Linear(32 * 7 * 7, 128),
-            nn.ReLU(),
-            nn.Linear(128, num_classes)
+            nn.ReLU()
         )
+        self.classifier = nn.Linear(128, num_classes)
+
+    def forward_features(self, x):
+        return self.features(x)
 
     def forward(self, x):
-        return self.net(x)
+        x = self.forward_features(x)
+        x = self.classifier(x)
+        return x
 
 class ImprovedCNN(nn.Module):
     def __init__(self, dropout=0.5, num_classes=10):
         super(ImprovedCNN, self).__init__()
-        self.net = nn.Sequential(
+        self.features = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=3, padding=1),
             nn.BatchNorm2d(32),
             nn.ReLU(),
@@ -35,27 +40,37 @@ class ImprovedCNN(nn.Module):
             nn.Flatten(),
             nn.Linear(64 * 7 * 7, 256),
             nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(256, num_classes)
+            nn.Dropout(dropout)
         )
+        self.classifier = nn.Linear(256, num_classes)
+
+    def forward_features(self, x):
+        return self.features(x)
 
     def forward(self, x):
-        return self.net(x)
+        x = self.forward_features(x)
+        x = self.classifier(x)
+        return x
 
 class MLPBaseline(nn.Module):
     def __init__(self, num_classes=10):
         super(MLPBaseline, self).__init__()
-        self.net = nn.Sequential(
+        self.features = nn.Sequential(
             nn.Flatten(),
             nn.Linear(28*28, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, num_classes)
+            nn.ReLU()
         )
+        self.classifier = nn.Linear(128, num_classes)
+
+    def forward_features(self, x):
+        return self.features(x)
 
     def forward(self, x):
-        return self.net(x)
+        x = self.forward_features(x)
+        x = self.classifier(x)
+        return x
 
 class TemperatureScaledModel(nn.Module):
     def __init__(self, base_model, init_temp=1.0):

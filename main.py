@@ -1,6 +1,10 @@
 import argparse
 from experiments import main as run_experiments
 import torch
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run MNIST/EMNIST experiments.")
