@@ -127,7 +127,9 @@ def plot_reliability_diagram(all_labels, all_preds, all_probs, exp_plot_dir, exp
     plt.close()
     print(f"Reliability diagram saved to {fname}")
 
-def plot_most_confident_misclassifications(images, preds, labels, confidences, exp_plot_dir, exp_name, top_n=16):
+def plot_most_confident_misclassifications(
+    images, preds, labels, confidences, exp_plot_dir, exp_name, top_n=16, class_names=None
+):
     preds = np.array(preds)
     labels = np.array(labels)
     confidences = np.array(confidences)
@@ -147,9 +149,14 @@ def plot_most_confident_misclassifications(images, preds, labels, confidences, e
             img_disp = img.squeeze().cpu().numpy()
         else:
             img_disp = img.squeeze()
+        # Use class names if provided, and ensure index is int
+        pred_idx = int(preds[idx])
+        true_idx = int(labels[idx])
+        pred_label = class_names[pred_idx] if class_names is not None and pred_idx < len(class_names) else pred_idx
+        true_label = class_names[true_idx] if class_names is not None and true_idx < len(class_names) else true_idx
         plt.imshow(img_disp, cmap='gray')
         plt.axis('off')
-        plt.title(f"P:{preds[idx]}\nT:{labels[idx]}\nC:{confidences[idx]:.2f}")
+        plt.title(f"P:{pred_label}\nT:{true_label}\nC:{confidences[idx]:.2f}")
     plt.tight_layout()
     os.makedirs(exp_plot_dir, exist_ok=True)
     fname = os.path.join(exp_plot_dir, f"{exp_name}_most_confident_misclassifications.png")
@@ -238,13 +245,16 @@ def plot_umap_embeddings(
         cbar.set_label('Confidence (max softmax)', fontsize=12)
 
     # Build legend for class colors
-    class_handles = []
-    for i, class_label in enumerate(unique_labels):
-        color = cmap(i % cmap.N)
-        class_handles.append(Line2D([0], [0], marker='o', color='w', label=f'Class {class_label}',
-                                    markerfacecolor=color, markersize=8, alpha=0.8))
-    # Add handles for correct/incorrect
-    handles = class_handles + [
+    handles = []
+    if num_classes <= 20:
+        class_handles = []
+        for i, class_label in enumerate(unique_labels):
+            color = cmap(i % cmap.N)
+            class_handles.append(Line2D([0], [0], marker='o', color='w', label=f'Class {class_label}',
+                                        markerfacecolor=color, markersize=8, alpha=0.8))
+        handles = class_handles
+    # Always add handles for correct/incorrect
+    handles += [
         Line2D([0], [0], marker='o', color='w', label='Correct', markerfacecolor='gray', markersize=8, alpha=0.25),
         Line2D([0], [0], marker='o', color='black', label='Incorrect', markerfacecolor='gray', markersize=12, markeredgewidth=2)
     ]
@@ -335,13 +345,16 @@ def plot_tsne_embeddings(
         cbar.set_label('Confidence (max softmax)', fontsize=12)
 
     # Build legend for class colors
-    class_handles = []
-    for i, class_label in enumerate(unique_labels):
-        color = cmap(i % cmap.N)
-        class_handles.append(Line2D([0], [0], marker='o', color='w', label=f'Class {class_label}',
-                                    markerfacecolor=color, markersize=8, alpha=0.8))
-    # Add handles for correct/incorrect
-    handles = class_handles + [
+    handles = []
+    if num_classes <= 20:
+        class_handles = []
+        for i, class_label in enumerate(unique_labels):
+            color = cmap(i % cmap.N)
+            class_handles.append(Line2D([0], [0], marker='o', color='w', label=f'Class {class_label}',
+                                        markerfacecolor=color, markersize=8, alpha=0.8))
+        handles = class_handles
+    # Always add handles for correct/incorrect
+    handles += [
         Line2D([0], [0], marker='o', color='w', label='Correct', markerfacecolor='gray', markersize=8, alpha=0.25),
         Line2D([0], [0], marker='o', color='black', label='Incorrect', markerfacecolor='gray', markersize=12, markeredgewidth=2)
     ]
@@ -425,23 +438,35 @@ def plot_all_results(EXPERIMENT_NAME, results, per_fold_results, per_fold_conf_m
             avg_cm = np.sum(conf_matrices, axis=0) / len(conf_matrices)
             row_sums = avg_cm.sum(axis=1, keepdims=True)
             norm_cm = np.divide(avg_cm, row_sums, where=row_sums!=0) * 100
-            fig, ax = plt.subplots(figsize=(7, 7))
-            im = ax.imshow(norm_cm, interpolation='nearest', cmap='Blues', vmin=0, vmax=2)  # Changed vmax=3 to vmax=2
+            num_classes = norm_cm.shape[0]
+            fig, ax = plt.subplots(figsize=(min(1.5 + 0.3*num_classes, 20), min(1.5 + 0.3*num_classes, 20)))
+            im = ax.imshow(norm_cm, interpolation='nearest', cmap='Blues', vmin=0, vmax=2)
             cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             cbar.set_label('% of True Class', fontsize=14)
             plt.title(f'{exp_name} - Averaged Confusion Matrix (5 folds, % normalized)', fontsize=14, pad=20)
             plt.xlabel('Predicted label', fontsize=14)
             plt.ylabel('True label', fontsize=14)
-            tick_marks = np.arange(10)
-            ax.set_xticks(tick_marks)
-            ax.set_yticks(tick_marks)
-            ax.set_xticklabels(tick_marks, fontsize=12)
-            ax.set_yticklabels(tick_marks, fontsize=12)
-            for i in range(norm_cm.shape[0]):
-                for j in range(norm_cm.shape[1]):
-                    val = norm_cm[i, j]
-                    color = 'white' if val > 1.5 else 'black'
-                    ax.text(j, i, f'{val:.1f}', ha='center', va='center', color=color, fontsize=12)
+            tick_marks = np.arange(num_classes)
+            # Show all ticks for <=20 classes, else every 5th
+            if num_classes <= 20:
+                ax.set_xticks(tick_marks)
+                ax.set_yticks(tick_marks)
+                ax.set_xticklabels(tick_marks, fontsize=10, rotation=45)
+                ax.set_yticklabels(tick_marks, fontsize=10)
+            else:
+                step = max(1, num_classes // 20)
+                shown_ticks = tick_marks[::step]
+                ax.set_xticks(shown_ticks)
+                ax.set_yticks(shown_ticks)
+                ax.set_xticklabels(shown_ticks, fontsize=8, rotation=90)
+                ax.set_yticklabels(shown_ticks, fontsize=8)
+            # Only annotate cells for small confusion matrices
+            if num_classes <= 20:
+                for i in range(norm_cm.shape[0]):
+                    for j in range(norm_cm.shape[1]):
+                        val = norm_cm[i, j]
+                        color = 'white' if val > 1.5 else 'black'
+                        ax.text(j, i, f'{val:.1f}', ha='center', va='center', color=color, fontsize=8)
             plt.tight_layout(rect=[0, 0, 1, 1])
             fname = os.path.join(exp_plot_dir, f"{exp_name}_averaged_confusion_matrix.png")
             plt.savefig(fname, bbox_inches='tight')

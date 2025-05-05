@@ -1,5 +1,6 @@
 import torch
 import os
+import torchvision
 from models import SimpleCNN, ImprovedCNN, MLPBaseline, TemperatureScaledModel
 from train import cross_validate, load_model
 from evaluation import evaluate_saved_models, plot_all_results, plot_reliability_diagram, compute_ece, plot_most_confident_misclassifications, plot_umap_embeddings, plot_tsne_embeddings, plot_confidence_histogram
@@ -18,6 +19,42 @@ def get_num_classes(dataset, emnist_split):
         'mnist': 10
     }
     return emnist_splits.get(emnist_split, 47)
+
+def get_class_names(dataset, emnist_split):
+    if dataset == 'mnist':
+        return [str(i) for i in range(10)]
+    split = emnist_split
+    if split == 'letters':
+        import string
+        return list(string.ascii_uppercase)
+    elif split == 'digits' or split == 'mnist':
+        return [str(i) for i in range(10)]
+    else:
+        # Try to load mapping from EMNIST .mat file
+        try:
+            from scipy.io import loadmat
+            import os
+            # Find the EMNIST .mat file
+            data_dir = './data/EMNIST/raw'
+            mat_path = os.path.join(data_dir, f'emnist-{split}.mat')
+            if not os.path.exists(mat_path):
+                # fallback to torchvision download location
+                data_dir = os.path.expanduser('~/.cache/torch/datasets/EMNIST/raw')
+                mat_path = os.path.join(data_dir, f'emnist-{split}.mat')
+            mapping = None
+            if os.path.exists(mat_path):
+                mat = loadmat(mat_path)
+                mapping = mat['mapping']  # shape (num_classes, 2)
+                # mapping[:, 1] are ASCII codes, convert to characters
+                class_names = [chr(int(m[1])) for m in mapping]
+                return class_names
+        except Exception:
+            pass
+        # fallback: just use class indices
+        from torchvision.datasets import EMNIST
+        dummy = EMNIST(root='./data', split=split, download=True)
+        num_classes = len(dummy.classes) if hasattr(dummy, 'classes') else len(set(dummy.targets.numpy()))
+        return [str(i) for i in range(num_classes)]
 
 def get_experiment_configs(EXPERIMENT_NAME, DEBUG):
     if DEBUG:
@@ -109,6 +146,7 @@ def main(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device, DATASET='mnist', EMNIST_SP
     exp_plot_dir = os.path.join('plots', EXPERIMENT_NAME)
     ece_table = []
     acc_table = []
+    class_names = get_class_names(DATASET, EMNIST_SPLIT)
     for exp_name, (all_labels, all_preds, all_probs) in reliability_data.items():
         plot_reliability_diagram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name)
         plot_confidence_histogram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name)
@@ -146,7 +184,7 @@ def main(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device, DATASET='mnist', EMNIST_SP
     for exp_name, (all_images, all_preds, all_labels, all_probs) in miscls_data.items():
         plot_most_confident_misclassifications(
             all_images, all_preds, all_labels, all_probs,
-            exp_plot_dir, exp_name, top_n=16
+            exp_plot_dir, exp_name, top_n=16, class_names=class_names
         )
     # UMAP embedding plots
     for exp_name, (all_embeddings, all_preds, all_labels) in umap_data.items():
