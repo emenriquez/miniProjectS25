@@ -2,7 +2,7 @@ import torch
 import os
 from models import SimpleCNN, ImprovedCNN, MLPBaseline, TemperatureScaledModel
 from train import cross_validate, load_model
-from evaluation import evaluate_saved_models, plot_all_results, plot_reliability_diagram, compute_ece, plot_most_confident_misclassifications, plot_umap_embeddings, plot_tsne_embeddings
+from evaluation import evaluate_saved_models, plot_all_results, plot_reliability_diagram, compute_ece, plot_most_confident_misclassifications, plot_umap_embeddings, plot_tsne_embeddings, plot_confidence_histogram
 import numpy as np
 import pandas as pd
 
@@ -110,6 +110,7 @@ def main(EXPERIMENT_NAME, DEBUG, LOAD_MODELS, device, DATASET='mnist', EMNIST_SP
     acc_table = []
     for exp_name, (all_labels, all_preds, all_probs) in reliability_data.items():
         plot_reliability_diagram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name)
+        plot_confidence_histogram(all_labels, all_preds, all_probs, exp_plot_dir, exp_name)
         # Compute ECE for each fold (simulate by splitting into 5 chunks)
         n = len(all_labels)
         fold_size = n // 5
